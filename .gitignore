@@ -1,28 +1,66 @@
-*.pyc
-*.DS_Store
-*.egg*
-/dist/
-/.idea
-/docs/_build/
-/node_modules/
-build/
-env
-env_linux
+########################################
+# Python
+########################################
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
 
-#src
-#*.sqlite*
+########################################
+# Django
+########################################
+db.sqlite3
+media/
+staticfiles/
+*.log
 
-#.env
-node_modules
+# allow these specific media files:
+!/media/mapper.json
+!/media/Sales.csv
+
+########################################
+# Environment Files
+########################################
+.env
+.env.*
+venv/
+.venv/
+env/
+env_linux/
+
+########################################
+# Node / Frontend
+########################################
+node_modules/
+npm-debug.log
 yarn.lock
 package-lock.json
 
+########################################
+# Build & Dist
+########################################
+/dist/
+build/
+*.egg*
+*.egg-info/
+
+########################################
+# OS / IDE
+########################################
+*.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+########################################
+# Tasks & Temp
+########################################
 tasks_logs/
-#media/
 
-apps/common/management
-apps/helpers
-
-#/media/
-!/media/mapper.json
-!/media/Sales.csv
+########################################
+# App-Specific Exceptions
+########################################
+# needed folders in your project:
+!apps/common/management
+!apps/helpers
