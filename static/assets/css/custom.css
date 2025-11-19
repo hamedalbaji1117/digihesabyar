@@ -1,0 +1,5 @@
+html[lang="fa"] body {
+  direction: rtl;
+  text-align: right;
+  font-family: IRANSans, Vazirmatn, Tahoma, sans-serif;
+}

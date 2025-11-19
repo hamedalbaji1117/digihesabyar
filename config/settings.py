@@ -25,46 +25,61 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'Super_Secr3t_9999')
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable must be set!")
 
 # Enable/Disable DEBUG Mode
-DEBUG = str2bool(os.environ.get('DEBUG'))
-#print(' DEBUG -> ' + str(DEBUG) ) 
+DEBUG = str2bool(os.environ.get('DEBUG', 'True'))
+# print(' DEBUG -> ' + str(DEBUG) )
 
 # Hosts Settings
-ALLOWED_HOSTS = ['*']
-CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://localhost:5085', 'http://127.0.0.1:8000', 'http://127.0.0.1:5085', 'https://rocket-django.onrender.com']
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000',
+    'http://localhost:5085',
+    'http://127.0.0.1:8000',
+    'http://127.0.0.1:5085',
+    'https://rocket-django.onrender.com',
+]
 
-# Used by DEBUG-Toolbar 
+# Used by DEBUG-Toolbar
 INTERNAL_IPS = [
     "127.0.0.1",
 ]
+
+# فقط خارج از /admin نوار Debug Toolbar نمایش داده شود
+DEBUG_TOOLBAR_CONFIG = {
+    "SHOW_TOOLBAR_CALLBACK": lambda request: not request.path.startswith("/admin/")
+}
 
 # Application definition
 
 INSTALLED_APPS = [
     "jazzmin",
-    
+
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.humanize",
 
     "apps.pages",
     "apps.dyn_dt",
     "apps.dyn_api",
     "apps.users",
-    "apps.charts", 
+    "apps.charts",
     "apps.tasks",
+    "apps.digihesabyar",
 
     "django_celery_results",
 
-    'rest_framework',
-    'rest_framework.authtoken', 
-    'drf_spectacular',
-    'django_api_gen',
+    "rest_framework",
+    "rest_framework.authtoken",
+    "drf_spectacular",
+    "django_api_gen",
 
     "debug_toolbar",
 ]
@@ -83,7 +98,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "config.urls"
 
-UI_TEMPLATES = os.path.join(BASE_DIR, 'templates') 
+UI_TEMPLATES = os.path.join(BASE_DIR, 'templates')
 
 TEMPLATES = [
     {
@@ -115,15 +130,15 @@ DB_PORT     = os.getenv('DB_PORT'     , None)
 DB_NAME     = os.getenv('DB_NAME'     , None)
 
 if DB_ENGINE and DB_NAME and DB_USERNAME:
-    DATABASES = { 
-      'default': {
-        'ENGINE'  : 'django.db.backends.' + DB_ENGINE, 
-        'NAME'    : DB_NAME,
-        'USER'    : DB_USERNAME,
-        'PASSWORD': DB_PASS,
-        'HOST'    : DB_HOST,
-        'PORT'    : DB_PORT,
-        }, 
+    DATABASES = {
+        'default': {
+            'ENGINE'  : 'django.db.backends.' + DB_ENGINE,
+            'NAME'    : DB_NAME,
+            'USER'    : DB_USERNAME,
+            'PASSWORD': DB_PASS,
+            'HOST'    : DB_HOST,
+            'PORT'    : DB_PORT,
+        },
     }
 else:
     DATABASES = {
@@ -156,12 +171,12 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "fa"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Tehran"
 
 USE_I18N = True
-
+USE_L10N = True
 USE_TZ = True
 
 
@@ -175,8 +190,9 @@ STATICFILES_DIRS = (
     os.path.join(BASE_DIR, 'static'),
 )
 
-MEDIA_URL = 'media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -186,10 +202,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ### Async Tasks (Celery) Settings ###
 
-CELERY_SCRIPTS_DIR        = os.path.join(BASE_DIR, "tasks_scripts" )
+CELERY_SCRIPTS_DIR        = os.path.join(BASE_DIR, "tasks_scripts")
 
 CELERY_LOGS_URL           = "/tasks_logs/"
-CELERY_LOGS_DIR           = os.path.join(BASE_DIR, "tasks_logs"    )
+CELERY_LOGS_DIR           = os.path.join(BASE_DIR, "tasks_logs")
 
 CELERY_BROKER_URL         = os.environ.get("CELERY_BROKER", "redis://redis:6379")
 CELERY_RESULT_BACKEND     = os.environ.get("CELERY_BROKER", "redis://redis:6379")
@@ -199,7 +215,7 @@ CELERY_TASK_TIME_LIMIT    = 30 * 60
 CELERY_CACHE_BACKEND      = "django-cache"
 CELERY_RESULT_BACKEND     = "django-db"
 CELERY_RESULT_EXTENDED    = True
-CELERY_RESULT_EXPIRES     = 60*60*24*30 # Results expire after 1 month
+CELERY_RESULT_EXPIRES     = 60*60*24*30  # Results expire after 1 month
 CELERY_ACCEPT_CONTENT     = ["json"]
 CELERY_TASK_SERIALIZER    = 'json'
 CELERY_RESULT_SERIALIZER  = 'json'
@@ -207,13 +223,14 @@ CELERY_RESULT_SERIALIZER  = 'json'
 
 
 LOGIN_REDIRECT_URL = '/'
+
 # EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = os.environ.get('EMAIL_PORT', 587)
 EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', True)
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER',)
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 
 REST_FRAMEWORK = {
@@ -228,8 +245,10 @@ REST_FRAMEWORK = {
 }
 ########################################
 
-# risky
-SESSION_COOKIE_HTTPONLY=False
+# Security Settings
+SESSION_COOKIE_HTTPONLY = True  # جلوگیری از دسترسی JavaScript به cookie
+SESSION_COOKIE_SECURE = not DEBUG  # فقط در production از HTTPS استفاده می‌کند
+CSRF_COOKIE_SECURE = not DEBUG
 
 MESSAGE_TAGS = {
     messages.INFO: 'text-blue-800 border border-blue-300 bg-blue-50 dark:text-blue-400 dark:border-blue-800',
@@ -241,14 +260,14 @@ MESSAGE_TAGS = {
 
 # ### DYNAMIC_DATATB Settings ###
 DYNAMIC_DATATB = {
-    # SLUG -> Import_PATH 
-    'product' : "apps.pages.models.Product",
+    # SLUG -> Import_PATH
+    'product': "apps.pages.models.Product",
 }
 ########################################
 
 # Syntax: URI -> Import_PATH
 DYNAMIC_API = {
-    # SLUG -> Import_PATH 
-    'product' : "apps.pages.models.Product",
+    # SLUG -> Import_PATH
+    'product': "apps.pages.models.Product",
 }
 ########################################

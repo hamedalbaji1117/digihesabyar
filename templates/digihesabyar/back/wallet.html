@@ -1,0 +1,75 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="space-y-6 text-slate-900 dark:text-slate-100">
+
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold mb-1">کیف پول من</h1>
+      <p class="text-sm text-gray-600 dark:text-gray-300">
+        موجودی کیف پول شما برای محاسبه و مشاهدهٔ صورتحساب‌ها استفاده می‌شود.
+        همهٔ مبالغ بر اساس ریال ذخیره و محاسبه می‌شوند (هر ۱٬۰۰۰ تومان = ۱۰٬۰۰۰ ریال).
+      </p>
+    </div>
+  </div>
+
+  <!-- موجودی -->
+  <div class="bg-white dark:bg-slate-900 rounded-xl p-4 shadow">
+    <h2 class="text-lg font-semibold mb-3">موجودی فعلی</h2>
+    <div class="text-2xl font-bold">
+      {{ wallet.balance|default_if_none:"0"|floatformat:0 }} ریال
+    </div>
+    <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+      فعلاً شارژ کیف پول از طریق درگاه پرداخت در مرحله بعدی پروژه پیاده‌سازی می‌شود.
+      در محیط توسعه می‌توانید موجودی را از طریق پنل مدیریت (Wallet) تنظیم کنید.
+    </p>
+  </div>
+
+  <!-- آخرین تراکنش‌ها -->
+  <div class="bg-white dark:bg-slate-900 rounded-xl p-4 shadow">
+    <h2 class="text-lg font-semibold mb-3">آخرین تراکنش‌ها</h2>
+
+    {% if transactions %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr class="border-b text-left">
+              <th class="py-2 px-2">تاریخ</th>
+              <th class="py-2 px-2">نوع</th>
+              <th class="py-2 px-2 text-right">مبلغ (ریال)</th>
+              <th class="py-2 px-2">توضیحات</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in transactions %}
+              <tr class="border-b last:border-0">
+                <td class="py-2 px-2 text-xs">
+                  {{ t.created_at|date:"Y-m-d H:i" }}
+                </td>
+                <td class="py-2 px-2">
+                  {% if t.type == "credit" %}
+                    <span class="text-emerald-600">واریز</span>
+                  {% else %}
+                    <span class="text-red-600">برداشت</span>
+                  {% endif %}
+                </td>
+                <td class="py-2 px-2 text-right">
+                  {{ t.amount|floatformat:0 }}
+                </td>
+                <td class="py-2 px-2 text-xs">
+                  {{ t.description|default:"-" }}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="text-sm text-gray-600 dark:text-gray-300">
+        هنوز هیچ تراکنشی در کیف پول ثبت نشده است.
+      </p>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

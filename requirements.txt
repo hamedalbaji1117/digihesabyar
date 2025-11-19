@@ -7,6 +7,11 @@ str2bool==1.1
 django-debug-toolbar==4.2.0
 Pillow==11.1.0
 
+# Excel Processing
+pandas>=2.0.0
+openpyxl>=3.1.0
+xlsxwriter>=3.1.0
+
 # Services
 celery==5.3.4
 redis==5.0.1

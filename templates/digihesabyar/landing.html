@@ -1,0 +1,248 @@
+{% extends "layouts/base.html" %}
+{% load humanize %}
+
+{% block content %}
+<div class="space-y-8 text-slate-900 dark:text-slate-100">
+
+  <!-- هدر اصلی -->
+  <section class="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow flex flex-col lg:flex-row items-start lg:items-center gap-6">
+    <div class="flex-1">
+      <h1 class="text-2xl md:text-3xl font-extrabold mb-3">
+        دیجی‌حساب‌یار – پنل اصلی
+      </h1>
+      <p class="text-sm md:text-base text-gray-600 dark:text-gray-300 leading-relaxed">
+        از این صفحه می‌توانید به تمام بخش‌های سامانه دسترسی داشته باشید:
+        آپلود و تحلیل صورتحساب‌های دیجی‌کالا، ماشین‌حساب سود و زیان، کیف پول و پرداخت‌ها،
+        گزارش‌ها و سایر ابزارها.
+      </p>
+
+      <div class="mt-5 flex flex-wrap gap-3">
+        <a
+          href="{% url 'digihesabyar:dashboard' %}"
+          class="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition"
+        >
+          📊 ورود به داشبورد صورتحساب‌ها
+        </a>
+        <a
+          href="{% url 'digihesabyar:calculator' %}"
+          class="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition"
+        >
+          🔢 ماشین‌حساب سود و زیان
+        </a>
+        <a
+          href="{% url 'digihesabyar:wallet' %}"
+          class="inline-flex items-center px-4 py-2.5 rounded-xl text-sm font-semibold bg-slate-800 text-white hover:bg-slate-900 transition"
+        >
+          💳 مشاهده کیف پول
+        </a>
+      </div>
+    </div>
+
+    <div class="w-full lg:w-64 border border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-4 bg-slate-50/80 dark:bg-slate-900/60">
+      <h2 class="text-sm font-semibold mb-2">
+        وضعیت ورود
+      </h2>
+      {% if user.is_authenticated %}
+        <p class="text-xs text-emerald-700 dark:text-emerald-400 mb-2 font-semibold">
+          ✓ شما وارد سیستم شده‌اید
+        </p>
+        {% if wallet %}
+        <div class="space-y-1 mb-2">
+          <p class="text-xs text-gray-700 dark:text-gray-200">
+            موجودی کیف پول: <span class="font-bold text-emerald-600 dark:text-emerald-400">{{ wallet.balance|floatformat:0|intcomma }} ریال</span>
+          </p>
+          {% if invoice_count %}
+          <p class="text-xs text-gray-700 dark:text-gray-200">
+            تعداد صورتحساب‌ها: <span class="font-semibold">{{ invoice_count }}</span>
+            {% if paid_invoices %} ({{ paid_invoices }} پرداخت شده){% endif %}
+            {% if pending_invoices %} • <span class="text-amber-600 dark:text-amber-400">{{ pending_invoices }} در انتظار</span>{% endif %}
+          </p>
+          {% endif %}
+        </div>
+        {% endif %}
+        <p class="text-xs text-gray-600 dark:text-gray-300">
+          می‌توانید مستقیماً به داشبورد، کیف پول و سایر بخش‌ها بروید.
+        </p>
+      {% else %}
+        <p class="text-xs text-amber-700 dark:text-amber-400 mb-2 font-semibold">
+          ⚠ برای استفاده از امکانات سامانه ابتدا باید وارد حساب کاربری شوید.
+        </p>
+        <p class="text-xs text-gray-600 dark:text-gray-300">
+          از لینک ورود بالای سایت استفاده کنید. بعد از ورود، از همین صفحه به تمام بخش‌ها دسترسی خواهید داشت.
+        </p>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- لینک‌های اصلی سیستم -->
+  <section class="bg-white dark:bg-slate-900 rounded-2xl p-6 shadow">
+    <h2 class="text-lg font-bold mb-4">
+      دسترسی سریع به بخش‌های اصلی
+    </h2>
+
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+
+      <!-- داشبورد صورتحساب‌ها -->
+      <a
+        href="{% url 'digihesabyar:dashboard' %}"
+        class="group border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-blue-500 hover:shadow-md transition"
+      >
+        <h3 class="text-sm font-semibold mb-1 flex items-center justify-between">
+          📊 داشبورد صورتحساب‌ها
+          <span class="text-xs text-blue-600 group-hover:underline">
+            ورود →
+          </span>
+        </h3>
+        <p class="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+          آپلود فایل اکسل صورتحساب دیجی‌کالا، مشاهده لیست صورتحساب‌ها، وضعیت پردازش،
+          خطاها و دسترسی به جزئیات هر صورتحساب.
+        </p>
+      </a>
+
+      <!-- ماشین‌حساب سود و زیان -->
+      <a
+        href="{% url 'digihesabyar:calculator' %}"
+        class="group border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-emerald-500 hover:shadow-md transition"
+      >
+        <h3 class="text-sm font-semibold mb-1 flex items-center justify-between">
+          🔢 ماشین‌حساب سود و زیان
+          <span class="text-xs text-emerald-600 group-hover:underline">
+            استفاده →
+          </span>
+        </h3>
+        <p class="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+          حساب سریع سود و زیان بر اساس قیمت خرید، کمیسیون، هزینه ارسال و پردازش
+          بدون نیاز به آپلود صورتحساب کامل.
+        </p>
+      </a>
+
+      <!-- کیف پول -->
+      <a
+        href="{% url 'digihesabyar:wallet' %}"
+        class="group border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-slate-700 hover:shadow-md transition"
+      >
+        <h3 class="text-sm font-semibold mb-1 flex items-center justify-between">
+          💳 کیف پول و تراکنش‌ها
+          <span class="text-xs text-slate-700 dark:text-slate-300 group-hover:underline">
+            مشاهده →
+          </span>
+        </h3>
+        <p class="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+          مشاهده موجودی کیف پول، لیست تراکنش‌های شارژ و برداشت، و وضعیت پرداخت صورتحساب‌ها.
+        </p>
+      </a>
+
+      <!-- سیستم کوپن -->
+      {% if user.is_authenticated %}
+      <a
+        href="{% url 'digihesabyar:wallet' %}"
+        class="group border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-purple-500 hover:shadow-md transition"
+      >
+        <h3 class="text-sm font-semibold mb-1 flex items-center justify-between">
+          <span>🎫 سیستم کوپن تخفیف</span>
+          <span class="text-xs text-purple-600 group-hover:underline">
+            مشاهده →
+          </span>
+        </h3>
+        <p class="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+          استفاده از کوپن‌های تخفیف برای کاهش هزینه پردازش صورتحساب‌ها. 
+          در صفحه پرداخت می‌توانید کد کوپن خود را وارد کنید.
+        </p>
+      </a>
+      {% else %}
+      <div
+        class="border border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-4"
+      >
+        <h3 class="text-sm font-semibold mb-1">
+          🎫 سیستم کوپن تخفیف
+        </h3>
+        <p class="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+          برای استفاده از کوپن‌های تخفیف ابتدا وارد حساب کاربری شوید.
+        </p>
+      </div>
+      {% endif %}
+
+      <!-- راهنما / آموزش‌ها -->
+      <div
+        class="border border-dashed border-slate-200 dark:border-slate-800 rounded-xl p-4"
+      >
+        <h3 class="text-sm font-semibold mb-1">
+          📚 راهنما و آموزش‌ها
+        </h3>
+        <p class="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+          در آینده می‌توانید از این قسمت به مقالات آموزشی، ویدئوها و راهنمای استفاده از
+          سیستم محاسبه سود و زیان دسترسی پیدا کنید.
+        </p>
+      </div>
+
+      <!-- ورود به مدیریت جنگو -->
+      {% if user.is_superuser %}
+      <a
+        href="/admin/"
+        class="group border border-slate-200 dark:border-slate-800 rounded-xl p-4 hover:border-indigo-500 hover:shadow-md transition"
+      >
+        <h3 class="text-sm font-semibold mb-1 flex items-center justify-between">
+          ⚙️ مدیریت سیستم (Admin)
+          <span class="text-xs text-indigo-600 group-hover:underline">
+            ورود →
+          </span>
+        </h3>
+        <p class="text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+          مدیریت کاربران، کوپن‌ها، صورتحساب‌ها، پلن‌های قیمت‌گذاری، و سایر مدل‌های بک‌اند
+          از طریق پنل مدیریت جنگو.
+        </p>
+      </a>
+      {% endif %}
+
+    </div>
+  </section>
+
+  <!-- ویژگی‌های سیستم -->
+  {% if user.is_authenticated %}
+  <section class="bg-gradient-to-r from-blue-50 to-emerald-50 dark:from-slate-800 dark:to-slate-900 rounded-2xl p-6 border border-blue-200 dark:border-slate-700">
+    <h2 class="text-lg font-bold mb-4 text-slate-900 dark:text-slate-100">
+      ✨ ویژگی‌های دیجی‌حساب‌یار
+    </h2>
+    <div class="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+      <div class="bg-white dark:bg-slate-800 rounded-lg p-3 shadow-sm">
+        <h4 class="text-sm font-semibold mb-1 text-slate-900 dark:text-slate-100">📊 پردازش خودکار</h4>
+        <p class="text-xs text-gray-600 dark:text-gray-300">
+          آپلود فایل اکسل و پردازش خودکار صورتحساب‌های دیجی‌کالا
+        </p>
+      </div>
+      <div class="bg-white dark:bg-slate-800 rounded-lg p-3 shadow-sm">
+        <h4 class="text-sm font-semibold mb-1 text-slate-900 dark:text-slate-100">💰 محاسبه سود/زیان</h4>
+        <p class="text-xs text-gray-600 dark:text-gray-300">
+          محاسبه دقیق سود و زیان با در نظر گیری تمام هزینه‌ها
+        </p>
+      </div>
+      <div class="bg-white dark:bg-slate-800 rounded-lg p-3 shadow-sm">
+        <h4 class="text-sm font-semibold mb-1 text-slate-900 dark:text-slate-100">💳 کیف پول</h4>
+        <p class="text-xs text-gray-600 dark:text-gray-300">
+          سیستم کیف پول برای پرداخت هزینه پردازش صورتحساب‌ها
+        </p>
+      </div>
+      <div class="bg-white dark:bg-slate-800 rounded-lg p-3 shadow-sm">
+        <h4 class="text-sm font-semibold mb-1 text-slate-900 dark:text-slate-100">🎫 کوپن تخفیف</h4>
+        <p class="text-xs text-gray-600 dark:text-gray-300">
+          استفاده از کوپن‌های تخفیف برای کاهش هزینه‌ها
+        </p>
+      </div>
+      <div class="bg-white dark:bg-slate-800 rounded-lg p-3 shadow-sm">
+        <h4 class="text-sm font-semibold mb-1 text-slate-900 dark:text-slate-100">📈 گزارش‌ها</h4>
+        <p class="text-xs text-gray-600 dark:text-gray-300">
+          خروجی اکسل با جزئیات کامل سود و زیان
+        </p>
+      </div>
+      <div class="bg-white dark:bg-slate-800 rounded-lg p-3 shadow-sm">
+        <h4 class="text-sm font-semibold mb-1 text-slate-900 dark:text-slate-100">🔢 ماشین‌حساب</h4>
+        <p class="text-xs text-gray-600 dark:text-gray-300">
+          محاسبه سریع سود و زیان بدون آپلود فایل
+        </p>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+</div>
+{% endblock %}

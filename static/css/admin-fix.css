@@ -1,0 +1,18 @@
+/* فقط برای پنل ادمین – فایل از base_site.html لود می‌شود */
+
+/* برگردوندن جهت کلی به LTR تا منو و دکمه‌ها درست نمایش داده شوند */
+body {
+    direction: ltr !important;
+    text-align: left;
+}
+
+/* پهن‌تر کردن سایدبار و جلوگیری از نصفه شدن عنوان مدل‌ها */
+#nav-sidebar {
+    width: 260px;
+}
+
+#nav-sidebar .app-label,
+#nav-sidebar .model,
+#nav-sidebar .model a {
+    white-space: nowrap;
+}
