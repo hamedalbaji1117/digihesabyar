@@ -20,6 +20,7 @@ from .models import (
     Coupon,
 )
 from .services import process_invoice_file, normalize_number
+from .forms import InvoiceUploadForm
 
 
 # ----------------------------------------------------------------------
@@ -122,44 +123,57 @@ def dashboard(request):
       - فرم آپلود فایل اکسل صورتحساب
       - لیست آخرین صورتحساب‌های کاربر
     """
-    if request.method == "POST" and "invoice_file" in request.FILES:
-        title = request.POST.get("title") or "صورتحساب دیجی‌کالا"
-        f = request.FILES["invoice_file"]
+    if request.method == "POST":
+        form = InvoiceUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            title = request.POST.get("title") or "صورتحساب دیجی‌کالا"
+            f = form.cleaned_data["original_file"]
 
-        invoice = InvoiceFile.objects.create(
-            user=request.user,
-            title=title,
-            original_file=f,
-            status=InvoiceFile.STATUS_PENDING,
-        )
+            invoice = InvoiceFile.objects.create(
+                user=request.user,
+                title=title,
+                original_file=f,
+                status=InvoiceFile.STATUS_PENDING,
+            )
 
-        # پردازش فایل
-        row_count, log_text = process_invoice_file(invoice)
+            # پردازش فایل
+            row_count, log_text = process_invoice_file(invoice)
 
-        if invoice.status == InvoiceFile.STATUS_ERROR:
+            if invoice.status == InvoiceFile.STATUS_ERROR:
+                messages.error(
+                    request,
+                    f"خطا در پردازش فایل: {invoice.error_message}",
+                )
+            else:
+                messages.success(
+                    request,
+                    f"فایل با موفقیت پردازش شد. تعداد ردیف‌ها: {row_count}",
+                )
+
+            # بعد از پردازش موفق، کاربر را به صفحه ثبت قیمت خرید می‌بریم
+            return redirect("digihesabyar:invoice_prices", invoice_id=invoice.id)
+        else:
             messages.error(
                 request,
-                f"خطا در پردازش فایل: {invoice.error_message}",
+                "فایل ارسال‌شده معتبر نیست، لطفاً خطاهای فرم را بررسی کنید.",
             )
-        else:
-            messages.success(
-                request,
-                f"فایل با موفقیت پردازش شد. تعداد ردیف‌ها: {row_count}",
-            )
+    else:
+        form = InvoiceUploadForm()
 
-        return redirect("digihesabyar:invoice_detail", invoice_id=invoice.id)
-
-    invoices = InvoiceFile.objects.filter(user=request.user).select_related("user").order_by("-uploaded_at")
+    invoices = (
+        InvoiceFile.objects.filter(user=request.user)
+        .select_related("user")
+        .order_by("-uploaded_at")
+    )
 
     return render(
         request,
         "digihesabyar/dashboard.html",
         {
             "invoices": invoices,
+            "form": form,
         },
     )
-
-
 # ----------------------------------------------------------------------
 #  جزئیات یک صورتحساب
 # ----------------------------------------------------------------------
@@ -547,8 +561,17 @@ def export_invoice_excel(request, invoice_id: int):
     منطق:
       - برای مرجوعی‌ها، همه اعداد صفر و وضعیت "مرجوعی"
       - مرجوعی‌ها وارد جمع کل نمی‌شوند
+      - دانلود اکسل فقط برای صورتحساب‌های پرداخت‌شده مجاز است.
     """
     invoice = get_object_or_404(InvoiceFile, id=invoice_id, user=request.user)
+
+    # اگر هنوز هزینه پردازش پرداخت نشده، اجازه دانلود اکسل نداریم
+    if not invoice.is_paid:
+        messages.error(
+            request,
+            "برای دانلود خروجی اکسل، لطفاً ابتدا هزینه پردازش این صورتحساب را پرداخت کنید.",
+        )
+        return redirect("digihesabyar:invoice_pay", invoice_id=invoice.id)
 
     rows = InvoiceRow.objects.filter(invoice=invoice).order_by("sale_type", "order_id")
 

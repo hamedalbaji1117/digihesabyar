@@ -116,6 +116,57 @@ def _find_col(headers: List[str], keywords: List[str]) -> int | None:
                 return idx
     return None
 
+def _find_amount_col_for_sales(headers: List[str], is_return_sheet: bool = False) -> int | None:
+    """
+    در شیت‌های فروش / برگشت از فروش:
+      - فروش عادی: از ستون «مبلغ نهایی بستانکار (﷼)»
+      - برگشت از فروش: از ستون «مبلغ نهایی بدهکار (﷼)»
+    """
+    credit_idx = None  # بستانکار
+    debit_idx = None   # بدهکار
+
+    for idx, name in enumerate(headers):
+        if not name:
+            continue
+        name_str = str(name)
+        name_norm = name_str.replace(" ", "").lower()
+
+        if "مبلغنهایی" in name_norm:
+            if "بستانکار" in name_norm and credit_idx is None:
+                credit_idx = idx
+            if "بدهکار" in name_norm and debit_idx is None:
+                debit_idx = idx
+
+    if is_return_sheet:
+        # در برگشت از فروش، مبلغ واقعی معمولاً در بدهکار است
+        return debit_idx if debit_idx is not None else credit_idx
+    else:
+        # در فروش عادی، مبلغ فروش در بستانکار است
+        return credit_idx if credit_idx is not None else debit_idx
+
+def _find_amount_col_for_cost(headers: List[str]) -> int | None:
+    """
+    در شیت‌های هزینه (کمیسیون، ارسال، پردازش، درآمد پلتفرم):
+      - مبلغ واقعی معمولاً در «مبلغ نهایی بدهکار (﷼)» است.
+    """
+    credit_idx = None  # بستانکار
+    debit_idx = None   # بدهکار
+
+    for idx, name in enumerate(headers):
+        if not name:
+            continue
+        name_str = str(name)
+        name_norm = name_str.replace(" ", "").lower()
+
+        if "مبلغنهایی" in name_norm:
+            if "بستانکار" in name_norm and credit_idx is None:
+                credit_idx = idx
+            if "بدهکار" in name_norm and debit_idx is None:
+                debit_idx = idx
+
+    # برای هزینه‌ها، اولویت با بدهکار است
+    return debit_idx if debit_idx is not None else credit_idx
+
 
 # --- قیمت‌گذاری براساس تعرفه‌ها -------------------------------------------------
 
@@ -155,263 +206,224 @@ def parse_invoice_excel(file_path: str) -> Tuple[List[ParsedRow], dict, str]:
     wb = load_workbook(filename=file_path, data_only=True)
 
     try:
-    sheet_names = wb.sheetnames
+        sheet_names = wb.sheetnames
 
-    log_lines: List[str] = []
-    parsed_rows: List[ParsedRow] = []
+        log_lines: List[str] = []
+        parsed_rows: List[ParsedRow] = []
 
-    # برای دسترسی سریع براساس (sale_type, order_id, dkpc)
-    rows_map: Dict[Tuple[str, str, str], ParsedRow] = {}
+        # برای دسترسی سریع براساس (sale_type, order_id, dkpc)
+        rows_map: Dict[Tuple[str, str, str], ParsedRow] = {}
 
-    def get_or_create(
-        sale_type: str,
-        order_id,
-        dkpc,
-        title,
-        is_return: bool,
-    ) -> ParsedRow:
-        """
-        اگر این سفارش + DKPC قبلاً دیده شده، همان را برمی‌گرداند؛
-        در غیر این صورت ردیف جدیدی می‌سازد.
-        """
-        key = (sale_type, str(order_id), str(dkpc))
-        if key not in rows_map:
-            row = ParsedRow(
-                sale_type=sale_type,
-                order_id=str(order_id),
-                dkpc=str(dkpc),
-                title=str(title) if title is not None else "",
-                is_return=is_return,
-            )
-            rows_map[key] = row
-            parsed_rows.append(row)
-        return rows_map[key]
-
-    # ----------------- خواندن شیت فروش نقدی و برگشت از فروش ---------------------
-
-    def _read_sales_sheet(
-        sheet_name: str,
-        sale_type: str,
-        is_return_sheet: bool = False,
-    ):
-        if sheet_name not in sheet_names:
-            log_lines.append(f"شیت {sheet_name} پیدا نشد؛ از آن عبور می‌کنیم.")
-            return
-
-        ws = wb[sheet_name]
-        headers = _get_header_row(ws)
-        if not headers:
-            log_lines.append(f"شیت {sheet_name}: هدر معتبر پیدا نشد.")
-            return
-
-        idx_order = _find_col(headers, ["شماره سفارش", "شناسه سفارش"])
-        idx_dkpc = _find_col(headers, ["کد تنوع", "dkpc", "DKPC"])
-        idx_title = _find_col(headers, ["عنوان تنوع", "عنوان کالا"])
-        idx_amount = _find_col(headers, ["مبلغ نهایی", "مبلغ کل", "مبلغ"])
-
-        if idx_order is None or idx_dkpc is None or idx_amount is None:
-            log_lines.append(
-                f"شیت {sheet_name}: ستون‌های کلیدی (شماره سفارش/کد تنوع/مبلغ) پیدا نشد."
-            )
-            return
-
-        count_rows = 0
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            order_id = row[idx_order]
-            dkpc = row[idx_dkpc]
-            title = row[idx_title] if idx_title is not None else ""
-            amount_raw = row[idx_amount]
-
-            if order_id is None or dkpc is None:
-                continue
-
-            amount = _normalize_number(amount_raw)
-
-            # برای شیت‌های برگشت از فروش، مبلغ معمولاً منفی است؛
-            # ما is_return را True می‌کنیم و مبلغ فروش را منفی ذخیره می‌کنیم.
-                key = (sale_type, str(order_id), str(dkpc))
-                existing_parsed = rows_map.get(key)
-                is_return = is_return_sheet or (existing_parsed.is_return if existing_parsed else False)
-
-            parsed = get_or_create(
-                sale_type=sale_type,
-                order_id=order_id,
-                dkpc=dkpc,
-                title=title,
-                is_return=is_return,
-            )
-
-            # برای شیت "برگشت از فروش"، مبلغ فروش را منفی می‌کنیم
-            if is_return_sheet:
-                parsed.sale_amount -= abs(amount)
-            else:
-                parsed.sale_amount += amount
-
-            count_rows += 1
-
-        log_lines.append(
-            f"شیت {sheet_name}: {count_rows} ردیف فروش/برگشتی خوانده شد."
-        )
-
-    # فروش نقدی
-    _read_sales_sheet("فروش", sale_type="cash", is_return_sheet=False)
-    _read_sales_sheet("برگشت از فروش", sale_type="cash", is_return_sheet=True)
-
-    # فروش اعتباری
-    _read_sales_sheet("فروش اعتباری", sale_type="credit", is_return_sheet=False)
-    _read_sales_sheet(
-        "برگشت از فروش اعتباری", sale_type="credit", is_return_sheet=True
-    )
-
-    # ----------------- خواندن شیت‌های هزینه / کمیسیون / توسعه پلتفرم ----------
-
-    def _apply_cost_sheet(
-        sheet_name: str,
-        sale_type: str,
-        kind: str,
-        is_return_sheet: bool = False,
-    ):
-        """
-        kind یکی از مقادیر:
-          - "commission"
-          - "shipping"
-          - "processing"
-          - "platform_dev"
-
-        sign = +1 برای هزینه عادی
-        sign = -1 برای شیت‌های "برگشت از ..." که باید از هزینه کم شوند.
-        """
-        if sheet_name not in sheet_names:
-            log_lines.append(
-                f"شیت {sheet_name} پیدا نشد (kind={kind})؛ از آن عبور می‌کنیم."
-            )
-            return
-
-        ws = wb[sheet_name]
-        headers = _get_header_row(ws)
-        if not headers:
-            log_lines.append(f"شیت {sheet_name}: هدر معتبر پیدا نشد.")
-            return
-
-        idx_order = _find_col(headers, ["شماره سفارش", "شناسه سفارش"])
-        idx_dkpc = _find_col(headers, ["کد تنوع", "dkpc", "DKPC"])
-        idx_amount = _find_col(headers, ["مبلغ نهایی", "مبلغ کل", "مبلغ"])
-
-        if idx_order is None or idx_dkpc is None or idx_amount is None:
-            log_lines.append(
-                f"شیت {sheet_name}: ستون‌های کلیدی (شماره سفارش/کد تنوع/مبلغ) پیدا نشد."
-            )
-            return
-
-        sign = -1 if is_return_sheet else 1
-
-        count_rows = 0
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            order_id = row[idx_order]
-            dkpc = row[idx_dkpc]
-            amount_raw = row[idx_amount]
-
-            if order_id is None or dkpc is None:
-                continue
-
-            amount = _normalize_number(amount_raw) * sign
-
+        def get_or_create(
+            sale_type: str,
+            order_id,
+            dkpc,
+            title,
+            is_return: bool,
+        ) -> ParsedRow:
+            """
+            اگر این سفارش + DKPC قبلاً دیده شده، همان را برمی‌گرداند؛
+            در غیر این صورت ردیف جدیدی می‌سازد.
+            """
             key = (sale_type, str(order_id), str(dkpc))
             if key not in rows_map:
-                # اگر برای این سفارش/کدتنوع هنوز ردیفی نداریم، یک ردیف جدید به عنوان فروش با مبلغ فروش صفر می‌سازیم
-                parsed = ParsedRow(
+                row = ParsedRow(
                     sale_type=sale_type,
                     order_id=str(order_id),
                     dkpc=str(dkpc),
-                    title="",
-                    is_return=False,
+                    title=str(title) if title is not None else "",
+                    is_return=is_return,
                 )
-                rows_map[key] = parsed
-                parsed_rows.append(parsed)
-            else:
-                parsed = rows_map[key]
+                rows_map[key] = row
+                parsed_rows.append(row)
+            return rows_map[key]
 
-            if kind == "commission":
-                parsed.commission_amount += amount
-            elif kind == "shipping":
-                parsed.shipping_fee += amount
-            elif kind == "processing":
-                parsed.processing_fee += amount
-            elif kind == "platform_dev":
-                parsed.platform_dev_revenue += amount
+        # ----------------- خواندن شیت فروش نقدی و برگشت از فروش -----------------
 
-            count_rows += 1
+        def _read_sales_sheet(
+            sheet_name: str,
+            sale_type: str,
+            is_return_sheet: bool = False,
+        ):
+            if sheet_name not in sheet_names:
+                log_lines.append(f"شیت {sheet_name} پیدا نشد؛ از آن عبور می‌کنیم.")
+                return
 
-        log_lines.append(
-            f"شیت {sheet_name}: {count_rows} ردیف هزینه روی ردیف‌های فروش اعمال شد (از {sheet_name})."
+            ws = wb[sheet_name]
+            headers = _get_header_row(ws)
+            if not headers:
+                log_lines.append(f"شیت {sheet_name}: هدر معتبر پیدا نشد.")
+                return
+
+            idx_order = _find_col(headers, ["شماره سفارش", "شناسه سفارش"])
+            idx_dkpc = _find_col(headers, ["کد تنوع", "dkpc", "DKPC"])
+            idx_title = _find_col(headers, ["عنوان تنوع", "عنوان کالا"])
+            idx_amount = _find_amount_col_for_sales(headers, is_return_sheet=is_return_sheet)
+
+
+            if idx_order is None or idx_dkpc is None or idx_amount is None:
+                log_lines.append(
+                    f"شیت {sheet_name}: ستون‌های کلیدی (شماره سفارش/کد تنوع/مبلغ) پیدا نشد."
+                )
+                return
+
+            count_rows = 0
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                order_id = row[idx_order]
+                dkpc = row[idx_dkpc]
+                title = row[idx_title] if idx_title is not None else ""
+                amount_raw = row[idx_amount]
+
+                if order_id is None or dkpc is None:
+                    continue
+
+                amount = _normalize_number(amount_raw)
+
+                # برای شیت‌های برگشت از فروش، مبلغ معمولاً منفی است؛
+                # ما is_return را True می‌کنیم و مبلغ فروش را منفی ذخیره می‌کنیم.
+                key = (sale_type, str(order_id), str(dkpc))
+                existing_parsed = rows_map.get(key)
+                is_return = is_return_sheet or (
+                    existing_parsed.is_return if existing_parsed else False
+                )
+
+                parsed = get_or_create(
+                    sale_type=sale_type,
+                    order_id=order_id,
+                    dkpc=dkpc,
+                    title=title,
+                    is_return=is_return,
+                )
+
+                # برای شیت "برگشت از فروش"، مبلغ فروش را منفی می‌کنیم
+                if is_return_sheet:
+                    parsed.sale_amount -= abs(amount)
+                else:
+                    parsed.sale_amount += amount
+
+                count_rows += 1
+
+            log_lines.append(
+                f"شیت {sheet_name}: {count_rows} ردیف فروش/برگشتی خوانده شد."
+            )
+
+        # فروش نقدی
+        _read_sales_sheet("فروش", sale_type="cash", is_return_sheet=False)
+        _read_sales_sheet("برگشت از فروش", sale_type="cash", is_return_sheet=True)
+
+        # فروش اعتباری
+        _read_sales_sheet("فروش اعتباری", sale_type="credit", is_return_sheet=False)
+        _read_sales_sheet(
+            "برگشت از فروش اعتباری", sale_type="credit", is_return_sheet=True
         )
 
-    # کمیسیون نقدی / اعتباری و برگشت‌هایشان
-    _apply_cost_sheet("کمیسیون فروش", "cash", "commission", is_return_sheet=False)
-    _apply_cost_sheet(
-        "کمیسیون فروش اعتباری", "credit", "commission", is_return_sheet=False
-    )
-    _apply_cost_sheet("برگشت از کمیسیون فروش", "cash", "commission", is_return_sheet=True)
-    _apply_cost_sheet(
-        "برگشت از کمیسیون فروش اعتباری",
-        "credit",
-        "commission",
-        is_return_sheet=True,
-    )
+        # ----------------- خواندن شیت‌های هزینه / کمیسیون / توسعه پلتفرم ----------
 
-    # هزینه ارسال
-    _apply_cost_sheet("هزینه ارسال", "cash", "shipping", is_return_sheet=False)
-    _apply_cost_sheet(
-        "هزینه ارسال اعتباری", "credit", "shipping", is_return_sheet=False
-    )
-    _apply_cost_sheet("برگشت از هزینه ارسال", "cash", "shipping", is_return_sheet=True)
-    _apply_cost_sheet(
-        "برگشت از هزینه ارسال اعتباری",
-        "credit",
-        "shipping",
-        is_return_sheet=True,
-    )
 
-    # هزینه پردازش
-    _apply_cost_sheet("هزینه پردازش", "cash", "processing", is_return_sheet=False)
-    _apply_cost_sheet(
-        "هزینه پردازش اعتباری", "credit", "processing", is_return_sheet=False
-    )
-    _apply_cost_sheet(
-        "برگشت از هزینه پردازش", "cash", "processing", is_return_sheet=True
-    )
-    _apply_cost_sheet(
-        "برگشت از هزینه پردازش اعتباری",
-        "credit",
-        "processing",
-        is_return_sheet=True,
-    )
+        def _apply_cost_sheet(
+            sheet_name: str,
+            sale_type: str,
+            kind: str,
+            is_return_sheet: bool = False,
+        ):
+            """
+            kind یکی از مقادیر:
+              - "commission"
+              - "shipping"
+              - "processing"
+              - "platform_dev"
+            """
+            if sheet_name not in sheet_names:
+                log_lines.append(
+                    f"شیت {sheet_name} پیدا نشد (kind={kind})؛ از آن عبور می‌کنیم."
+                )
+                return
 
-    # درآمد توسعه پلتفرم + برگشت از آن
-    _apply_cost_sheet(
-        "درآمد توسعه پلتفرم", "credit", "platform_dev", is_return_sheet=False
-    )
-    _apply_cost_sheet(
-        "برگشت از درآمد توسعه پلتفرم",
-        "credit",
-        "platform_dev",
-        is_return_sheet=True,
-    )
+            ws = wb[sheet_name]
+            headers = _get_header_row(ws)
+            if not headers:
+                log_lines.append(f"شیت {sheet_name}: هدر معتبر پیدا نشد.")
+                return
 
-    # هزینه برگشت از مشتری (به‌عنوان هزینه اضافی روی ردیف فروش)
-    _apply_cost_sheet(
-        "هزینه برگشت از مشتری", "cash", "shipping", is_return_sheet=False
-    )
+            idx_order = _find_col(headers, ["شماره سفارش", "شناسه سفارش"])
+            idx_dkpc = _find_col(headers, ["کد تنوع", "dkpc", "DKPC"])
+            idx_amount = _find_amount_col_for_cost(headers)
 
-    # TODO: در آینده شیت‌های دیگر مثل "هزینه ماندگاری در انبار" و ... را هم می‌توان اضافه کرد.
+            if idx_order is None or idx_dkpc is None or idx_amount is None:
+                log_lines.append(
+                    f"شیت {sheet_name}: ستون‌های کلیدی (شماره سفارش/کد تنوع/مبلغ) پیدا نشد."
+                )
+                return
 
-    # در انتها، همه parsed_rows را برمی‌گردانیم
-    extra_info = {
-        "sheet_names": sheet_names,
-        "log": "\n".join(log_lines),
-        "row_count": len(parsed_rows),
-    }
-    return parsed_rows, extra_info, "\n".join(log_lines)
+            count_rows = 0
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                order_id = row[idx_order]
+                dkpc = row[idx_dkpc]
+                amount_raw = row[idx_amount]
+
+                if order_id is None or dkpc is None:
+                    continue
+
+                amount = _normalize_number(amount_raw)
+                if amount == 0:
+                    continue
+
+                # فعلاً فقط شیت‌های هزینه عادی را می‌خوانیم، نه برگشتی‌ها
+                amount = abs(amount)
+
+                key = (sale_type, str(order_id), str(dkpc))
+                if key not in rows_map:
+                    # اگر برای این سفارش/کدتنوع هنوز ردیفی نداریم، یک ردیف جدید به عنوان فروش با مبلغ فروش صفر می‌سازیم
+                    parsed = ParsedRow(
+                        sale_type=sale_type,
+                        order_id=str(order_id),
+                        dkpc=str(dkpc),
+                        title="",
+                        is_return=False,
+                    )
+                    rows_map[key] = parsed
+                    parsed_rows.append(parsed)
+                else:
+                    parsed = rows_map[key]
+
+                if kind == "commission":
+                    parsed.commission_amount += amount
+                elif kind == "shipping":
+                    parsed.shipping_fee += amount
+                elif kind == "processing":
+                    parsed.processing_fee += amount
+                elif kind == "platform_dev":
+                    parsed.platform_dev_revenue += amount
+
+                count_rows += 1
+
+            log_lines.append(
+                f"شیت {sheet_name}: {count_rows} ردیف هزینه روی ردیف‌های فروش اعمال شد (از {sheet_name})."
+            )
+
+        # کمیسیون نقدی / اعتباری
+        _apply_cost_sheet("کمیسیون فروش", "cash", "commission", is_return_sheet=False)
+        _apply_cost_sheet("کمیسیون فروش اعتباری", "credit", "commission", is_return_sheet=False)
+
+        # هزینه ارسال
+        _apply_cost_sheet("هزینه ارسال", "cash", "shipping", is_return_sheet=False)
+        _apply_cost_sheet("هزینه ارسال اعتباری", "credit", "shipping", is_return_sheet=False)
+
+        # هزینه پردازش
+        _apply_cost_sheet("هزینه پردازش", "cash", "processing", is_return_sheet=False)
+        _apply_cost_sheet("هزینه پردازش اعتباری", "credit", "processing", is_return_sheet=False)
+
+        # درآمد توسعه پلتفرم
+        _apply_cost_sheet("درآمد توسعه پلتفرم", "credit", "platform_dev", is_return_sheet=False)
+
+        # هزینه برگشت از مشتری (در صورت وجود)
+        _apply_cost_sheet("هزینه برگشت از مشتری", "cash", "shipping", is_return_sheet=False)
+        extra_info = {
+            "sheet_names": sheet_names,
+            "log": "\n".join(log_lines),
+            "row_count": len(parsed_rows),
+        }
+        return parsed_rows, extra_info, "\n".join(log_lines)
     finally:
         wb.close()  # بستن فایل برای جلوگیری از memory leak
 
@@ -433,15 +445,16 @@ def process_invoice_file(invoice: InvoiceFile) -> Tuple[int, str]:
 
     try:
         # استفاده از .path برای فایل‌های محلی، یا open() برای storage های دیگر
-        file_path = invoice.original_file.path if hasattr(invoice.original_file, 'path') else None
+        file_path = invoice.original_file.path if hasattr(invoice.original_file, "path") else None
         if file_path is None:
             # برای storage های دیگر (مثل S3)، فایل را دانلود می‌کنیم
             import tempfile
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as tmp_file:
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp_file:
                 for chunk in invoice.original_file.chunks():
                     tmp_file.write(chunk)
                 file_path = tmp_file.name
-        
+
         parsed_rows, extra_info, log_text = parse_invoice_excel(file_path)
 
         # حذف ردیف‌های قبلی این صورتحساب و ساخت مجدد

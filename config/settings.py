@@ -16,6 +16,7 @@ from dotenv         import load_dotenv
 from str2bool       import str2bool
 from django.contrib import messages
 
+# بارگذاری متغیرهای محیطی از فایل .env در ریشه پروژه
 load_dotenv()  # take environment variables from .env.
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -35,12 +36,14 @@ DEBUG = str2bool(os.environ.get('DEBUG', 'True'))
 
 # Hosts Settings
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+
+# بهتره بعداً دامنه اصلی‌ات (مثلاً digihesabyar.ir) را هم اینجا اضافه کنی
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://localhost:5085',
     'http://127.0.0.1:8000',
     'http://127.0.0.1:5085',
-    'https://rocket-django.onrender.com',
+    'https://rocket-django.onrender.com',  # در صورت نیاز می‌توانی حذف/جایگزین کنی
 ]
 
 # Used by DEBUG-Toolbar
@@ -141,10 +144,11 @@ if DB_ENGINE and DB_NAME and DB_USERNAME:
         },
     }
 else:
+    # حالت پیش‌فرض برای توسعه لوکال با SQLite
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
-            'NAME': 'db.sqlite3',
+            'NAME'  : 'db.sqlite3',
         }
     }
 
@@ -207,8 +211,8 @@ CELERY_SCRIPTS_DIR        = os.path.join(BASE_DIR, "tasks_scripts")
 CELERY_LOGS_URL           = "/tasks_logs/"
 CELERY_LOGS_DIR           = os.path.join(BASE_DIR, "tasks_logs")
 
-CELERY_BROKER_URL         = os.environ.get("CELERY_BROKER", "redis://redis:6379")
-CELERY_RESULT_BACKEND     = os.environ.get("CELERY_BROKER", "redis://redis:6379")
+# نام متغیر محیطی با .env هماهنگ شد: CELERY_BROKER_URL
+CELERY_BROKER_URL         = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379")
 
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT    = 30 * 60
@@ -228,8 +232,8 @@ LOGIN_REDIRECT_URL = '/'
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = os.environ.get('EMAIL_PORT', 587)
-EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', True)
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = str2bool(os.environ.get('EMAIL_USE_TLS', 'True'))
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
 
@@ -247,7 +251,7 @@ REST_FRAMEWORK = {
 
 # Security Settings
 SESSION_COOKIE_HTTPONLY = True  # جلوگیری از دسترسی JavaScript به cookie
-SESSION_COOKIE_SECURE = not DEBUG  # فقط در production از HTTPS استفاده می‌کند
+SESSION_COOKIE_SECURE = not DEBUG  # در حالت production بهتره DEBUG=False باشد تا این مقدار True شود
 CSRF_COOKIE_SECURE = not DEBUG
 
 MESSAGE_TAGS = {
